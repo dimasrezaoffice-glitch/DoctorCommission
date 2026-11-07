@@ -1,0 +1,29 @@
+{
+  "name": "rekap-komisi-dokter",
+  "version": "1.0.0",
+  "description": "Rekap Komisi Dokter",
+  "author": "Dims",
+  "main": "main.js",
+  "scripts": {
+    "start": "node scripts/vendor.js && electron .",
+    "dist": "node scripts/vendor.js && electron-builder --win --publish never"
+  },
+  "devDependencies": {
+    "electron": "^33.2.0",
+    "electron-builder": "^25.1.8",
+    "xlsx": "0.18.5",
+    "exceljs": "4.4.0",
+    "jspdf": "2.5.1",
+    "jspdf-autotable": "3.8.2"
+  },
+  "build": {
+    "appId": "com.dims.rekapkomisidokter",
+    "productName": "Rekap Komisi Dokter",
+    "copyright": "Copyright © 2026 by Dims",
+    "asar": false,
+    "files": ["main.js", "app/**/*"],
+    "win": { "target": ["portable", "nsis"] },
+    "portable": { "artifactName": "RekapKomisiDokter-${version}-portable.exe" },
+    "nsis": { "artifactName": "RekapKomisiDokter-Setup-${version}.exe" }
+  }
+}

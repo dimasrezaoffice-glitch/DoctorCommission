@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rekap Komisi Dokter</title>
+<script data-x src="vendor/xlsx.full.min.js"></script>
+<script>window.XLSX||document.write('<script data-x src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"><\/script>')</script>
+<script src="vendor/exceljs.min.js"></script>
+<script>window.ExcelJS||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"><\/script>')</script>
+<script src="vendor/jspdf.umd.min.js"></script>
+<script>window.jspdf||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"><\/script>')</script>
+<script src="vendor/jspdf.plugin.autotable.min.js"></script>
+<script>(window.jspdf&&jspdf.jsPDF.API.autoTable)||document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"><\/script>')</script>
+<style>
+:root{--bg:#f6f7f9;--card:#fff;--tx:#1b1f24;--mu:#5b6573;--bd:#d9dee5;--ac:#1f3864;--ok:#e8f0fe}
+@media(prefers-color-scheme:dark){:root{--bg:#14171c;--card:#1d2127;--tx:#e8ebef;--mu:#9aa5b4;--bd:#323943;--ac:#5b8def;--ok:#1f2a3d}}
+*{box-sizing:border-box}body{margin:0;font:14px Arial,sans-serif;background:var(--bg);color:var(--tx)}
+header,main{max-width:1280px;margin:0 auto;padding:16px}
+h1{margin:0 0 4px;font-size:22px}p.s{margin:0;color:var(--mu)}
+#drop{border:2px dashed var(--bd);border-radius:10px;padding:28px;text-align:center;background:var(--card);cursor:pointer}
+#drop.over{border-color:var(--ac);background:var(--ok)}
+.tabs{display:flex;gap:8px;margin:16px 0 10px}
+.tabs button,.btn{border:1px solid var(--bd);background:var(--card);color:var(--tx);padding:8px 14px;border-radius:8px;cursor:pointer;font:inherit}
+.tabs button.on{background:var(--ac);color:#fff;border-color:var(--ac)}
+.btn:disabled{opacity:.5;cursor:wait}
+select{padding:8px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:var(--tx);font:inherit;min-width:240px;max-width:100%}
+.bar{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+.bar label{font-weight:bold}.bar label select{font-weight:normal}
+.cards{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px}
+.c{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:10px 14px;min-width:170px}
+.c b{display:block;font-size:18px;margin-top:2px}.c span{color:var(--mu);font-size:12px}
+.wrap{overflow:auto;max-height:68vh;border:1px solid var(--bd);border-radius:8px;background:var(--card)}
+table{border-collapse:collapse;width:100%;white-space:nowrap}
+th{position:sticky;top:0;background:#ffeb3b;color:#000;text-align:center;padding:8px;font-size:12px;border:1px solid var(--bd)}
+td{padding:6px 8px;border-top:1px solid var(--bd)}td.r,th.r{text-align:right}
+tfoot td{font-weight:bold;background:var(--ok);position:sticky;bottom:0}
+.mod{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:8}
+.mod[hidden]{display:none}
+.opts{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:6px 14px;margin:8px 0}
+.opts label{font-weight:normal;display:flex;gap:6px;align-items:center}
+.ft{text-align:center;color:var(--mu);font-size:12px;padding:18px 0 24px}
+#err{color:#c62828;margin-top:10px;font-weight:bold}
+#ov{position:fixed;inset:0;background:rgba(0,0,0,.55);display:flex;align-items:center;justify-content:center;z-index:9}
+#ov[hidden]{display:none}
+.box{background:var(--card);border-radius:12px;padding:26px 30px;width:min(440px,90vw);text-align:center}
+.spin{width:44px;height:44px;margin:0 auto 14px;border:5px solid var(--bd);border-top-color:var(--ac);border-radius:50%;animation:sp 0.9s linear infinite}
+@keyframes sp{to{transform:rotate(360deg)}}
+.pb{height:10px;border-radius:6px;background:var(--bd);overflow:hidden;margin:14px 0 8px}
+#pbf{height:100%;width:0;background:var(--ac);transition:width .25s}
+#pbf.ind{width:35%;animation:mv 1.2s ease-in-out infinite alternate}
+@keyframes mv{from{margin-left:0}to{margin-left:65%}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Rekap Komisi Dokter</h1>
+  <p class="s">Upload data master mentah (.xlsx / .csv). File dibaca langsung di browser Anda, tidak dikirim ke server mana pun.</p>
+</header>
+<main>
+  <div id="drop"><b>Klik di sini atau seret file master mentah ke sini</b><br><span class="s" id="fn">Belum ada file</span>
+    <input type="file" id="f" accept=".xlsx,.xls,.csv" hidden></div>
+  <div id="err"></div>
+  <div id="app" hidden>
+    <div class="bar" id="barP" hidden style="margin-top:14px"><label>Periode komisi: <select id="selP"></select></label></div>
+    <div class="tabs"><button id="t1" class="on">Per Dokter</button><button id="t2">Per Cabang</button></div>
+    <section id="p1">
+      <div class="bar">
+        <label>1. Pilih cabang: <select id="selDB"></select></label>
+        <label>2. Pilih dokter: <select id="selD"></select></label>
+        <button class="btn" id="xD">Unduh Excel</button><button class="btn" id="pD">Unduh PDF</button>
+      </div>
+      <div class="cards" id="cD"></div><div class="wrap" id="tD"></div>
+    </section>
+    <section id="p2" hidden>
+      <div class="bar"><label>Pilih cabang: <select id="selC"></select></label>
+        <button class="btn" id="xC">Unduh Excel</button><button class="btn" id="pC">Unduh PDF</button></div>
+      <div class="cards" id="cC"></div><div class="wrap" id="tC"></div>
+    </section>
+  </div>
+</main>
+<footer class="ft">Copyright &copy; 2026 by Dims</footer>
+<div id="ox" class="mod" hidden><div class="box" style="text-align:left;width:min(740px,94vw);max-height:88vh;overflow:auto">
+  <b id="oxT" style="font-size:16px"></b>
+  <p class="s" style="margin:10px 0 2px">Kolom yang ditampilkan</p><div class="opts" id="oxC"></div>
+  <div class="bar" style="margin:4px 0 8px"><button class="btn" id="oxA">Pilih semua</button><button class="btn" id="oxN">Kosongkan</button></div>
+  <p class="s" style="margin:6px 0 2px">Tambahan</p><div class="opts" id="oxF"></div>
+  <div class="bar" style="justify-content:flex-end;margin:14px 0 0"><button class="btn" id="oxX">Batal</button><button class="btn" id="oxG" style="background:var(--ac);color:#fff">Unduh</button></div>
+</div></div>
+<div id="ov" hidden><div class="box">
+  <div class="spin"></div><b id="ovT">Memulai...</b>
+  <div class="pb"><div id="pbf" class="ind"></div></div>
+  <div id="ovS" class="s"></div>
+  <p class="s" style="margin-top:8px;font-size:12px">Tahap membaca sheet tidak punya persentase. Selama bar bergerak dan waktu berjalan, proses masih bekerja.</p>
+</div></div>
+<script>
+// Kolom sesuai template Excel: [judul, nama kolom data mentah, tipe]  tipe: day | iso | n | pct | rp
+const EX=[['transaction_date','transaction_date','day'],['period_month','period_month','iso'],['branch_name','branch_name'],['invoice_number','invoice_number'],['service_type','service_type'],
+['p_id','p_id'],['p_name','p_name'],['item_type','item_type'],['item_code','item_code'],['item_name','item_name'],['qty_sold','qty_sold','n'],['net_sell_price','net_sell_price','n'],
+['potong_bahan_hpp','potong_bahan_hpp','n'],['tarif_komisi_perc_perhitungan','tarif_komisi_perc_perhitungan','pct'],['potong_bahan','potong_bahan'],['special_tag','special_tag'],
+['komisi_logic_explain','komisi_logic_explain'],['commission_period','commission_period'],['gform_tag','gform_tag'],['unique_treatment_lab_from_gform','unique_treatment_lab_from_gform'],
+['total_potong_lab_treatment_in_period','total_potong_lab_treatment_in_period','n'],['doc_reff_id','doc_reff_id'],['Nama Dokter','doctor'],['Komisi','komisi','rp'],
+['gift_voucher_tag','gift_voucher_tag'],['marketing_activity_tag','marketing_activity_tag']];
+const XW=[17.2,13.5,15.9,19,11.8,13.7,27.5,9.7,10.9,36.3,8.4,12.8,18.4,27.9,24.6,10.5,60,18.1,10,32.4,35.5,10.9,17.2,16,15.8,21];
+const CC=[['branch_name','branch_name'],['IDTM','IDTM'],['NRP','NRP'],['DOC NAME 2','DOC NAME 2'],['SUM of komisi',null,'rp'],['SUM of net_sell_price',null,'rp']];
+const REQ=['doctor','komisi','net_sell_price','branch_name','IDTM','NRP','DOC NAME 2'];
+let rows=[],view={};
+const $=id=>document.getElementById(id);
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>{const n=typeof v==='number'?v:parseFloat(v);return isNaN(n)?0:n};
+const fmt=n=>Math.round(n).toLocaleString('id-ID');
+const rp=n=>'Rp '+fmt(n);
+const clean=v=>typeof v==='string'?v.trim():v;
+function toD(v){
+  if(v instanceof Date)return isNaN(v)?null:new Date(Date.UTC(v.getFullYear(),v.getMonth(),v.getDate()));
+  const m=/^(\d{4})-(\d{2})-(\d{2})/.exec(v||'');return m?new Date(Date.UTC(+m[1],+m[2]-1,+m[3])):null;
+}
+const dstr=(d,o)=>d.toLocaleDateString('id-ID',Object.assign({timeZone:'UTC'},o));
+function show(v,t){
+  if(v==null||v==='')return '';
+  if(t==='day'||t==='iso'){const d=toD(v);return d?(t==='day'?dstr(d,{day:'2-digit',month:'short',year:'numeric'}):dstr(d,{month:'short',year:'numeric'})):esc(v)}
+  if(t==='pct'){const n=parseFloat(v);return isNaN(n)?esc(v):(n*100).toFixed(1).replace('.0','')+'%'}
+  if(t==='n')return fmt(num(v));
+  if(t==='rp')return fmt(num(v));
+  return esc(clean(v));
+}
+const isR=t=>t==='n'||t==='pct'||t==='rp';
+function table(cols,body,foot){
+  let h='<table><thead><tr>'+cols.map(c=>`<th>${esc(c[0])}</th>`).join('')+'</tr></thead><tbody>';
+  body.forEach(r=>{h+='<tr>'+cols.map((c,i)=>`<td class="${isR(c[2])?'r':''}">${show(r[i],c[2])}</td>`).join('')+'</tr>'});
+  h+='</tbody>';
+  if(foot)h+='<tfoot><tr>'+foot.map((v,i)=>`<td class="${isR(cols[i][2])?'r':''}">${v}</td>`).join('')+'</tr></tfoot>';
+  return h+'</table>';
+}
+const cards=a=>a.map(x=>`<div class="c"><span>${x[0]}</span><b>${x[1]}</b></div>`).join('');
+const R=()=>{const p=$('selP').value;return p==='Semua'?rows:rows.filter(r=>r.commission_period===p)};
+const uniq=(k,src)=>[...new Set((src||R()).map(r=>r[k]).filter(v=>v!=null&&v!==''))].sort((a,b)=>String(a).localeCompare(String(b),'id'));
+const NEED=[...new Set([...EX.map(c=>c[1]),...CC.map(c=>c[1]).filter(Boolean),...REQ])];
+const opts=(sel,list,keep,def)=>{sel.innerHTML=list.map(v=>`<option>${esc(v)}</option>`).join('');sel.value=list.includes(keep)?keep:(def??list[0]??'')};
+const periodOf=rs=>{const p=[...new Set(rs.map(r=>r.commission_period).filter(Boolean))].map(s=>String(s).replace(/^Period\s*-\s*/i,''));return p.join(', ')||'-'};
+
+function renderD(){
+  const br=$('selDB').value,sel=$('selD').value;
+  const rs=R().filter(r=>(br==='SEMUA'||r.branch_name===br)&&r.doctor===sel)
+    .sort((a,b)=>(toD(a.transaction_date)||0)-(toD(b.transaction_date)||0));
+  const k=rs.reduce((s,r)=>s+num(r.komisi),0),n=rs.reduce((s,r)=>s+num(r.net_sell_price),0);
+  const g=new Map();
+  rs.forEach(r=>{const key=[r.branch_name,r.IDTM,r.NRP,r['DOC NAME 2']].join('|');
+    if(!g.has(key))g.set(key,{branch:r.branch_name,idtm:r.IDTM,nrp:r.NRP,name:r['DOC NAME 2']||sel,sum:0});g.get(key).sum+=num(r.komisi)});
+  const m=/^[A-Z]+-([A-Z0-9]+)-/.exec((rs[0]&&rs[0].invoice_number)||'');
+  view.D={rs,doctor:sel,branch:br,k,n,groups:[...g.values()],period:periodOf(rs),
+    code:(br!=='SEMUA'&&m)?m[1]:(br==='SEMUA'?'SEMUA':br)};
+  $('cD').innerHTML=cards([['Jumlah baris treatment',fmt(rs.length)],['Total Komisi',fmt(k)]]);
+  $('tD').innerHTML=table(EX,rs.map(r=>EX.map(c=>r[c[1]]??null)));
+}
+function fillDoc(){
+  const br=$('selDB').value,src=R().filter(r=>br==='SEMUA'||r.branch_name===br);
+  opts($('selD'),uniq('doctor',src),$('selD').value);renderD();
+}
+function renderC(){
+  const sel=$('selC').value,m=new Map();
+  const src=R().filter(r=>sel==='SEMUA'||r.branch_name===sel);
+  src.forEach(r=>{
+    const key=[r.branch_name,r.IDTM,r.NRP,r['DOC NAME 2']].join('|');
+    if(!m.has(key))m.set(key,[r.branch_name,r.IDTM,r.NRP,clean(r['DOC NAME 2']),0,0]);
+    const o=m.get(key);o[4]+=num(r.komisi);o[5]+=num(r.net_sell_price);
+  });
+  const body=[...m.values()].sort((a,b)=>String(a[0]).localeCompare(String(b[0]))||num(a[1])-num(b[1]));
+  const k=body.reduce((s,r)=>s+r[4],0),n=body.reduce((s,r)=>s+r[5],0);
+  view.C={body,branch:sel,k,n,period:periodOf(src)};
+  $('cC').innerHTML=cards([['Jumlah dokter',fmt(body.length)],['Total komisi',fmt(k)]]);
+  $('tC').innerHTML=table(CC,body,['Total','','','',fmt(k),'']);
+}
+function fill(){
+  const bs=uniq('branch_name');
+  opts($('selDB'),['SEMUA',...bs],$('selDB').value,bs[0]);
+  opts($('selC'),['SEMUA',...bs],$('selC').value,'SEMUA');
+  fillDoc();renderC();
+}
+function init(){
+  const ps=uniq('commission_period',rows);
+  $('selP').innerHTML=['Semua',...ps].map(v=>`<option>${esc(v)}</option>`).join('');
+  $('barP').hidden=!ps.length;
+  $('selDB').innerHTML='';
+  $('app').hidden=false;fill();
+}
+
+// ---- pembacaan file (Web Worker agar halaman tidak macet) ----
+function parse(buf,NEED,REQ,prog){
+  prog('Membaca daftar sheet...',null);
+  const names=XLSX.read(buf,{type:'array',bookSheets:true}).SheetNames;
+  const sn=names.find(n=>n.trim().toLowerCase()==='detail')||names[1]||names[0];
+  prog('Membaca sheet "'+sn+'" (tahap terlama)...',null);
+  const wb=XLSX.read(buf,{type:'array',cellDates:true,dense:true,sheets:sn});
+  prog('Mengubah sheet menjadi tabel...',null);
+  const aoa=XLSX.utils.sheet_to_json(wb.Sheets[sn],{header:1,defval:null});
+  const head=(aoa[0]||[]).map(h=>h==null?'':String(h).trim());
+  const miss=REQ.filter(k=>head.indexOf(k)<0);
+  if(miss.length)return{error:'Sheet "'+sn+'" tidak punya kolom wajib: '+miss.join(', ')+'. Sheet di file: '+names.join(', ')};
+  const idx=[];NEED.forEach(k=>{const j=head.indexOf(k);if(j>=0)idx.push([k,j])});
+  const di=head.indexOf('doctor'),bi=head.indexOf('branch_name'),rows=[],tot=aoa.length;
+  for(let i=1;i<tot;i++){
+    const a=aoa[i];
+    if(i%5000===0)prog('Mengambil kolom yang dibutuhkan...',Math.round(i/tot*100));
+    if(!a||(a[di]==null&&a[bi]==null))continue;
+    const o={};for(let q=0;q<idx.length;q++)o[idx[q][0]]=a[idx[q][1]];rows.push(o);
+  }
+  return{rows:rows,sn:sn};
+}
+const XURL=([...document.querySelectorAll('script[data-x]')].pop()||{}).src||'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+const WSRC="importScripts('"+XURL+"');"+parse.toString()+
+";onmessage=function(e){var d=e.data;try{var r=parse(d.buf,d.NEED,d.REQ,function(t,p){postMessage({prog:[t,p]})});postMessage({done:r})}catch(x){postMessage({fail:String(x&&x.message||x)})}}";
+let timer=null,t0=0;
+function setP(t,p){
+  $('ovT').textContent=t;const f=$('pbf');
+  if(p==null){f.classList.add('ind');f.style.width=''}else{f.classList.remove('ind');f.style.width=p+'%'}
+}
+function ov(on){
+  $('ov').hidden=!on;clearInterval(timer);
+  if(on){t0=Date.now();$('ovS').textContent='Berjalan 0 detik';timer=setInterval(()=>{$('ovS').textContent='Berjalan '+Math.round((Date.now()-t0)/1000)+' detik'},500)}
+}
+function fail(msg){ov(false);$('app').hidden=true;$('err').textContent=msg}
+function load(file){
+  $('err').textContent='';ov(true);setP('Membaca file dari komputer...',0);
+  const rd=new FileReader();
+  rd.onprogress=e=>{if(e.lengthComputable)setP('Membaca file dari komputer...',Math.round(e.loaded/e.total*100))};
+  rd.onerror=()=>fail('Gagal membaca file dari komputer.');
+  rd.onload=e=>process(e.target.result,file);
+  rd.readAsArrayBuffer(file);
+}
+function process(buf,file){
+  const finish=r=>{
+    if(r.error)return fail(r.error);
+    setP('Menyiapkan tampilan...',100);
+    setTimeout(()=>{rows=r.rows;$('fn').textContent=file.name+' | sheet "'+r.sn+'" | '+fmt(rows.length)+' baris';init();ov(false)},30);
+  };
+  const main=()=>{setP('Memproses (mode biasa, halaman bisa terasa diam)...',null);
+    setTimeout(()=>{try{finish(parse(buf,NEED,REQ,setP))}catch(x){fail('Gagal membaca file: '+x.message+'. Pastikan komputer online (library Excel dimuat dari internet).')}},60)};
+  let w=null;
+  try{w=new Worker(URL.createObjectURL(new Blob([WSRC],{type:'text/javascript'})))}catch(x){w=null}
+  if(!w)return main();
+  w.onmessage=e=>{const d=e.data;
+    if(d.prog)setP(d.prog[0],d.prog[1]);
+    else if(d.done){w.terminate();finish(d.done)}
+    else if(d.fail){w.terminate();fail('Gagal membaca file: '+d.fail)}};
+  w.onerror=()=>{w.terminate();main()};
+  w.postMessage({buf:buf,NEED:NEED,REQ:REQ});
+}
+
+// ---- unduh Excel (mengikuti template) & PDF ----
+const RPF='_-"Rp"* #,##0_-;\\-"Rp"* #,##0_-;_-"Rp"* "-"_-;_-@_-';
+const NF={day:'[$-F800]dddd\\,\\ mmmm\\ dd\\,\\ yyyy',iso:'yyyy-mm-dd',n:'#,##0',pct:'0%',rp:RPF};
+const TH={top:{style:'thin'},left:{style:'thin'},bottom:{style:'thin'},right:{style:'thin'}};
+const FNT={name:'Calibri',size:11};
+const fname=(...p)=>p.filter(Boolean).join('_').replace(/[\\/:*?"<>|]/g,'').replace(/\s+/g,'_');
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;document.body.appendChild(a);a.click();setTimeout(()=>{URL.revokeObjectURL(a.href);a.remove()},1500)}
+function xval(v,t){
+  if(v==null||v==='')return null;
+  if(t==='day'||t==='iso')return toD(v);
+  if(t==='n'||t==='rp')return num(v);
+  if(t==='pct'){const n=parseFloat(v);return isNaN(n)?clean(v):n}
+  return clean(v);
+}
+function head(ws,rowNo,col0,titles){
+  titles.forEach((t,i)=>{const c=ws.getCell(rowNo,col0+i);c.value=t;c.font={...FNT,bold:true};
+    c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFF00'}};c.alignment={horizontal:'center',vertical:'middle'};c.border=TH});
+}
+async function busy(btn,fn){
+  const t=btn.textContent;btn.disabled=true;btn.textContent='Menyiapkan...';
+  try{await fn()}catch(e){alert('Gagal membuat file: '+e.message+'\nPastikan komputer online agar library Excel/PDF termuat.')}
+  btn.disabled=false;btn.textContent=t;
+}
+const dd=x=>{const d=toD(x);return d?dstr(d,{day:'2-digit',month:'2-digit',year:'numeric'}):''};
+const sumBy=(rs,k)=>rs.reduce((s,r)=>s+num(r[k]),0);
+const PDD=[
+ {t:'No',w:22,a:'center',f:(r,i)=>i+1},
+ {t:'Tanggal',w:50,f:r=>dd(r.transaction_date)},
+ {t:'Invoice',w:94,f:r=>clean(r.invoice_number)||''},
+ {t:'Pasien',w:96,f:r=>clean(r.p_name)||''},
+ {t:'Kode',w:54,f:r=>clean(r.item_code)||''},
+ {t:'Treatment',w:'auto',f:r=>clean(r.item_name)||''},
+ {t:'Qty',w:26,a:'right',f:r=>fmt(num(r.qty_sold)),tot:rs=>fmt(sumBy(rs,'qty_sold'))},
+ {t:'Net Sell Price',w:62,a:'right',f:r=>fmt(num(r.net_sell_price)),tot:(rs,o,v)=>o.f.net?fmt(v.n):null},
+ {t:'Potong HPP',w:56,a:'right',f:r=>fmt(num(r.potong_bahan_hpp)),tot:rs=>fmt(sumBy(rs,'potong_bahan_hpp'))},
+ {t:'Tarif',w:34,a:'center',f:r=>show(r.tarif_komisi_perc_perhitungan,'pct')},
+ {t:'Komisi',w:74,a:'right',f:r=>rp(num(r.komisi)),tot:(rs,o,v)=>rp(v.k)}];
+const PCC=[
+ {t:'No',w:28,a:'center',f:(r,i)=>i+1},{t:'Cabang',f:r=>r[0]},{t:'IDTM',f:r=>r[1]},{t:'NRP',f:r=>r[2]},{t:'Nama Dokter',f:r=>r[3]},
+ {t:'SUM of komisi',w:110,a:'right',f:r=>rp(r[4]),tot:(rs,o,v)=>rp(v.k)},
+ {t:'SUM of net_sell_price',w:130,a:'right',f:r=>rp(r[5]),tot:(rs,o,v)=>o.f.net?rp(v.n):null}];
+const SPEC={
+ xD:{title:'Opsi Excel - Per Dokter',cols:EX.map(c=>c[0]),lock:['Komisi'],
+   flags:[['tot','Baris Total Komisi',1],['sum','Blok ringkasan (branch_name, IDTM, NRP, DOC NAME 2, SUM of komisi)',1]]},
+ pD:{title:'Opsi PDF - Per Dokter',cols:PDD.map(d=>d.t),lock:['No','Komisi'],
+   flags:[['cnt','Jumlah treatment (kotak info)',1],['net','Total net sell price (kotak info & baris total)',0],['tot','Baris Total di akhir tabel',1],['sum','Tabel Ringkasan Komisi',1]]},
+ xC:{title:'Opsi Excel - Per Cabang',cols:CC.map(c=>c[0]),lock:[],
+   flags:[['tot','Baris Total',1],['net','Total net_sell_price di baris Total',0]]},
+ pC:{title:'Opsi PDF - Per Cabang',cols:PCC.map(d=>d.t),lock:['No'],
+   flags:[['cnt','Jumlah dokter (kotak info)',1],['net','Total net sell price (kotak info & baris total)',0],['tot','Baris Total di akhir tabel',1]]}};
+const OKEY='rkd_opts_v2';
+const loadSaved=()=>{try{return JSON.parse(localStorage.getItem(OKEY))||{}}catch(e){return {}}};
+function askOpts(id){
+  return new Promise(res=>{
+    const sp=SPEC[id],sv=loadSaved()[id]||{};
+    $('oxT').textContent=sp.title;
+    $('oxC').innerHTML=sp.cols.map((t,i)=>{const lk=sp.lock.includes(t),on=lk||(sv.c?sv.c.includes(t):true);
+      return `<label><input type="checkbox" data-c="${i}" ${on?'checked':''} ${lk?'disabled':''}> ${esc(t)}</label>`}).join('');
+    $('oxF').innerHTML=sp.flags.map(f=>{const on=sv.f&&f[0] in sv.f?sv.f[f[0]]:!!f[2];
+      return `<label><input type="checkbox" data-f="${f[0]}" ${on?'checked':''}> ${esc(f[1])}</label>`}).join('');
+    const cb=()=>[...$('oxC').querySelectorAll('input')];
+    $('oxA').onclick=()=>cb().forEach(i=>i.checked=true);
+    $('oxN').onclick=()=>cb().forEach(i=>{if(!i.disabled)i.checked=false});
+    $('oxX').onclick=()=>{$('ox').hidden=true;res(null)};
+    $('oxG').onclick=()=>{
+      const cols=cb().filter(i=>i.checked).map(i=>sp.cols[+i.dataset.c]);
+      const f={};$('oxF').querySelectorAll('input').forEach(i=>f[i.dataset.f]=i.checked);
+      try{const all=loadSaved();all[id]={c:cols,f};localStorage.setItem(OKEY,JSON.stringify(all))}catch(e){}
+      $('ox').hidden=true;res({cols:new Set(cols),f});
+    };
+    $('ox').hidden=false;
+  });
+}
+async function go(btn,id,fn){const o=await askOpts(id);if(o)await busy(btn,async()=>fn(o))}
+
+async function xlsxDokter(o){
+  const v=view.D,wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Sheet1'),n=v.rs.length;
+  const cs=EX.map((c,i)=>({c,i})).filter(x=>o.cols.has(x.c[0]));
+  ws.columns=cs.map(x=>({width:XW[x.i]}));
+  head(ws,1,1,cs.map(x=>x.c[0]));
+  v.rs.forEach((r,ri)=>cs.forEach((x,j)=>{
+    const cell=ws.getCell(ri+2,j+1);cell.value=xval(r[x.c[1]],x.c[2]);cell.font=FNT;cell.border=TH;
+    if(x.c[2])cell.numFmt=NF[x.c[2]];
+    if(x.i<10)cell.alignment={horizontal:'left'};
+  }));
+  const kc=cs.findIndex(x=>x.c[0]==='Komisi')+1,L=ws.getColumn(kc).letter;let tr=n+1;
+  if(o.f.tot){
+    tr=n+2;
+    if(kc>1){const lab=ws.getCell(tr,kc-1);lab.value='Total Komisi';lab.font={...FNT,bold:true};lab.alignment={horizontal:'right'};lab.border=TH}
+    const tc=ws.getCell(tr,kc);tc.value=n?{formula:'SUM('+L+'2:'+L+(n+1)+')',result:v.k}:0;tc.font={...FNT,bold:true};tc.numFmt=RPF;tc.border=TH;
+  }
+  if(o.f.sum){
+    const s0=tr+2,sc=Math.max(1,kc-4);
+    head(ws,s0,sc,['branch_name','IDTM','NRP','DOC NAME 2','SUM of komisi']);
+    v.groups.forEach((g,i)=>{
+      [g.branch,g.idtm,g.nrp,clean(g.name)].forEach((x,j)=>{const c=ws.getCell(s0+1+i,sc+j);c.value=x;c.font=FNT;c.border=TH;c.alignment={horizontal:'left'}});
+      const c=ws.getCell(s0+1+i,sc+4);c.value=(v.groups.length===1&&n&&o.f.tot)?{formula:L+tr,result:g.sum}:g.sum;c.font=FNT;c.numFmt=RPF;c.border=TH;
+    });
+  }
+  ws.views=[{state:'frozen',ySplit:1}];
+  if(n)ws.autoFilter={from:{row:1,column:1},to:{row:n+1,column:cs.length}};
+  ws.pageSetup={orientation:'landscape',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'};
+  const buf=await wb.xlsx.writeBuffer();
+  dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
+     fname('Komisi_Dokter',v.code,v.period,v.doctor)+'.xlsx');
+}
+async function xlsxCabang(o){
+  const v=view.C,wb=new ExcelJS.Workbook(),ws=wb.addWorksheet('Sheet1'),n=v.body.length;
+  const cs=CC.map((c,i)=>({c,i})).filter(x=>o.cols.has(x.c[0]));
+  ws.columns=cs.map(x=>({width:[18,10,14,42,22,24][x.i]}));
+  head(ws,1,1,cs.map(x=>x.c[0]));
+  v.body.forEach((r,ri)=>cs.forEach((x,j)=>{const c=ws.getCell(ri+2,j+1);c.value=r[x.i];c.font=FNT;c.border=TH;
+    if(x.i>=4)c.numFmt=RPF;else c.alignment={horizontal:'left'}}));
+  if(o.f.tot){
+    const tr=n+2,sums=cs.map((x,j)=>({x,j})).filter(y=>y.x.i===4||(y.x.i===5&&o.f.net));
+    if(sums.length){
+      if(sums[0].j>0){const l=ws.getCell(tr,sums[0].j);l.value='Total';l.font={...FNT,bold:true};l.alignment={horizontal:'right'};l.border=TH}
+      sums.forEach(y=>{const L=ws.getColumn(y.j+1).letter,c=ws.getCell(tr,y.j+1);
+        c.value=n?{formula:'SUM('+L+'2:'+L+(n+1)+')',result:y.x.i===4?v.k:v.n}:0;c.font={...FNT,bold:true};c.numFmt=RPF;c.border=TH});
+    }
+  }
+  ws.views=[{state:'frozen',ySplit:1}];
+  ws.pageSetup={orientation:'portrait',paperSize:9,fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:1'};
+  const buf=await wb.xlsx.writeBuffer();
+  dl(new Blob([buf],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),
+     fname('Komisi_per_Cabang',v.branch,v.period)+'.xlsx');
+}
+const YEL=[255,235,59],PALE=[255,248,200],GR=[200,200,200];
+function pdfBase(title,period){
+  const doc=new jspdf.jsPDF({orientation:'landscape',unit:'pt',format:'a4'}),W=doc.internal.pageSize.getWidth();
+  doc.setFont('helvetica','bold');doc.setFontSize(16);doc.setTextColor(0);doc.text(title,32,40);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.setTextColor(90);
+  doc.text('Periode komisi: '+period,32,55);
+  doc.text('Dicetak: '+new Date().toLocaleDateString('id-ID',{day:'2-digit',month:'long',year:'numeric'}),W-32,40,{align:'right'});
+  doc.setDrawColor(255,200,0);doc.setLineWidth(2);doc.line(32,64,W-32,64);
+  return doc;
+}
+function pdfInfo(doc,left,mid,total){
+  const W=doc.internal.pageSize.getWidth();doc.setFontSize(9);
+  const put=(arr,x1,x2)=>arr.forEach((a,i)=>{doc.setFont('helvetica','normal');doc.setTextColor(90);doc.text(a[0],x1,86+i*14);
+    doc.setFont('helvetica','bold');doc.setTextColor(0);doc.text(String(a[1]),x2,86+i*14)});
+  put(left,32,108);put(mid,330,430);
+  doc.setFillColor(...PALE);doc.setDrawColor(255,200,0);doc.setLineWidth(.8);doc.roundedRect(W-32-210,72,210,52,4,4,'FD');
+  doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(90);doc.text(total[0],W-32-198,89);
+  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.setTextColor(0);doc.text(total[1],W-32-198,112);
+}
+function pdfFooter(doc,label){
+  const N=doc.getNumberOfPages(),W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  for(let p=1;p<=N;p++){doc.setPage(p);doc.setFont('helvetica','normal');doc.setFontSize(8);doc.setTextColor(120);
+    doc.setDrawColor(...GR);doc.setLineWidth(.5);doc.line(32,H-28,W-32,H-28);
+    doc.text(label,32,H-16);doc.text('Copyright \u00A9 2026 by Dims',W/2,H-16,{align:'center'});doc.text('Halaman '+p+' dari '+N,W-32,H-16,{align:'right'})}
+}
+const TS={styles:{font:'helvetica',fontSize:7.5,cellPadding:3,lineColor:GR,lineWidth:.4,textColor:20,valign:'middle'},
+  headStyles:{fillColor:YEL,textColor:0,fontStyle:'bold',halign:'center'},footStyles:{fillColor:PALE,textColor:0,fontStyle:'bold'},
+  alternateRowStyles:{fillColor:[250,250,250]},margin:{left:32,right:32,bottom:36}};
+function pdfTable(doc,defs,o,rows,ctx,y,extra){
+  const cs=defs.filter(d=>o.cols.has(d.t)),cst={};
+  cs.forEach((d,i)=>{cst[i]={halign:d.a||'left'};if(d.w)cst[i].cellWidth=d.w});
+  const tv=cs.map(d=>(o.f.tot&&d.tot)?d.tot(rows,o,ctx):null),fi=tv.findIndex(x=>x!=null);
+  const foot=fi>0?[[{content:'Total',colSpan:fi,styles:{halign:'right'}},...tv.slice(fi).map(x=>x==null?'':x)]]:null;
+  doc.autoTable({...TS,...(extra||{}),startY:y,head:[cs.map(d=>d.t)],body:rows.map((r,i)=>cs.map(d=>d.f(r,i))),
+    ...(foot?{foot,showFoot:'lastPage'}:{}),columnStyles:cst});
+}
+function pdfDokter(o){
+  const v=view.D,doc=pdfBase('REKAP KOMISI DOKTER',v.period),g=v.groups[0]||{},mid=[];
+  if(o.f.cnt)mid.push(['Jumlah treatment',fmt(v.rs.length)]);
+  if(o.f.net)mid.push(['Total net sell price',rp(v.n)]);
+  pdfInfo(doc,[['Nama Dokter',v.doctor],['Cabang',v.branch==='SEMUA'?'Semua cabang':v.branch],['IDTM / NRP',(g.idtm??'-')+' / '+(g.nrp??'-')]],mid,['TOTAL KOMISI',rp(v.k)]);
+  pdfTable(doc,PDD,o,v.rs,v,136);
+  if(o.f.sum){
+    let y=doc.lastAutoTable.finalY+22;if(y>doc.internal.pageSize.getHeight()-120){doc.addPage();y=44}
+    doc.setFont('helvetica','bold');doc.setFontSize(10);doc.setTextColor(0);doc.text('Ringkasan Komisi',32,y);
+    doc.autoTable({...TS,startY:y+6,tableWidth:560,head:[['branch_name','IDTM','NRP','DOC NAME 2','SUM of komisi']],
+      body:v.groups.map(x=>[x.branch,x.idtm,x.nrp,clean(x.name),rp(x.sum)]),columnStyles:{4:{halign:'right'}}});
+  }
+  pdfFooter(doc,'Rekap Komisi Dokter - '+v.doctor);
+  doc.save(fname('Komisi_Dokter',v.code,v.period,v.doctor)+'.pdf');
+}
+function pdfCabang(o){
+  const v=view.C,doc=pdfBase('REKAP KOMISI PER CABANG',v.period),left=[['Cabang',v.branch==='SEMUA'?'Semua cabang':v.branch]],mid=[];
+  if(o.f.cnt)left.push(['Jumlah dokter',fmt(v.body.length)]);
+  if(o.f.net)mid.push(['Total net sell price',rp(v.n)]);
+  pdfInfo(doc,left,mid,['TOTAL KOMISI',rp(v.k)]);
+  pdfTable(doc,PCC,o,v.body,v,136,{styles:{...TS.styles,fontSize:8.5,cellPadding:4}});
+  pdfFooter(doc,'Rekap Komisi per Cabang - '+(v.branch==='SEMUA'?'Semua cabang':v.branch));
+  doc.save(fname('Komisi_per_Cabang',v.branch,v.period)+'.pdf');
+}
+
+const drop=$('drop'),inp=$('f');
+drop.onclick=()=>inp.click();inp.onchange=()=>{if(inp.files[0])load(inp.files[0]);inp.value=''};
+drop.ondragover=e=>{e.preventDefault();drop.classList.add('over')};
+drop.ondragleave=()=>drop.classList.remove('over');
+drop.ondrop=e=>{e.preventDefault();drop.classList.remove('over');e.dataTransfer.files[0]&&load(e.dataTransfer.files[0])};
+$('selP').onchange=fill;$('selDB').onchange=fillDoc;$('selD').onchange=renderD;$('selC').onchange=renderC;
+$('xD').onclick=e=>go(e.target,'xD',xlsxDokter);$('pD').onclick=e=>go(e.target,'pD',pdfDokter);
+$('xC').onclick=e=>go(e.target,'xC',xlsxCabang);$('pC').onclick=e=>go(e.target,'pC',pdfCabang);
+$('t1').onclick=()=>{$('p1').hidden=false;$('p2').hidden=true;$('t1').className='on';$('t2').className=''};
+$('t2').onclick=()=>{$('p2').hidden=false;$('p1').hidden=true;$('t2').className='on';$('t1').className=''};
+</script>
+</body>
+</html>
